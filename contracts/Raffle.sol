@@ -10,23 +10,31 @@ error Raffle__TransferFailed();
 error Raffle__NotOpen();
 error Raffle__UpKeepNotNeeded(uint256 balance, uint256 numberOfPlayers, uint256 raffleState);
 
+/** @title A decentralised lottery
+ *  @author Brice Grenard
+ *  @notice This contract is a demo of a simple decentralised lottery using Chainlink VRF and Chainlink KeepUp
+ *  @dev Both Chainlink VRF and Chainlink KeepUp subscription fundings and time base scheduler configuration are set up on chainlink website
+ */
 contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
     enum RaffleState {
         Open,
         Calculating
     }
 
-    uint256 private immutable i_participationFee;
-    address payable[] private s_players;
+    /* private immutable variables */
     VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
+    uint256 private immutable i_participationFee;
     bytes32 private immutable i_gasLane;
     uint64 private immutable i_subscriptionId;
     uint32 private immutable i_callBackGasLimit;
     uint256 private immutable i_intervalTime;
 
+    /* private constant variables */
     uint16 private constant MINIMUM_REQUEST_CONFIRMATIONS = 3;
     uint16 private constant NUM_WORDS = 1;
 
+    /* private storage variables */
+    address payable[] private s_players;
     address private s_winner;
     RaffleState private s_raffleState;
     uint256 private s_lastTimestamp;
@@ -55,6 +63,9 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
         s_lastTimestamp = block.timestamp;
     }
 
+    /**
+     *  @dev Anyone can participate to the lottery subject to payment of a minium participation fee and the lottery is open
+     */
     function participate() public payable {
         if (s_raffleState != RaffleState.Open) revert Raffle__NotOpen();
         if (msg.value < i_participationFee) revert Raffle__InsuffisiantFunds();
@@ -62,6 +73,10 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
         emit HasParticipated(msg.sender);
     }
 
+    /**
+     *  @dev This method is called by the chainlink VRF and is responsible to provide a "real" random number
+     *  Once we get this number, we are able to pick a winner and transfer to him/her all participants collected funds
+     */
     function fulfillRandomWords(
         uint256, /* requestId */
         uint256[] memory randomWords
@@ -69,15 +84,22 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
         uint256 indexWinner = randomWords[0] % s_players.length;
         address payable winner = s_players[indexWinner];
         s_winner = winner;
+
+        //reset players list and set raffle state to open state
         s_players = new address payable[](0);
         s_lastTimestamp = block.timestamp;
         s_raffleState = RaffleState.Open;
+
+        //Transfer collected lottery funds to the winner
         (bool success, ) = winner.call{value: address(this).balance}("");
         if (!success) revert Raffle__TransferFailed();
 
         emit WinnerPicked(winner);
     }
 
+    /**
+     *  @dev This method is called by the chainlink keepUp
+     */
     function performUpkeep(bytes calldata performData) external override {
         (bool upkeepNeeded, ) = checkUpkeep(performData);
         if (!upkeepNeeded)
@@ -99,6 +121,9 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
         emit RequestedWinner(requestId);
     }
 
+    /**
+     *  @dev If all here-below conditions are met, we can request for a random number from the performUpkeep function
+     */
     function checkUpkeep(
         bytes calldata /* checkData */
     )
@@ -110,42 +135,88 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
             bytes memory /* performData */
         )
     {
+        //Is the lottery open?
         bool isOpen = s_raffleState == RaffleState.Open;
+        //Have blocks been mined?
         bool timePassed = (block.timestamp - s_lastTimestamp) > i_intervalTime;
+        //Do we have a least one player that has particpated to the lottery?
         bool hasPlayers = (s_players.length > 0);
+        //Does the lottery contract retain players fees?
         bool hasBalance = address(this).balance > 0;
+
         upkeepNeeded = isOpen && timePassed && hasBalance && hasPlayers;
     }
 
+    /**
+     *  @dev Retrieves the minimum participation fee to participate to the lottery
+     */
     function getParticipationFee() public view returns (uint256 fee) {
         return i_participationFee;
     }
 
+    /**
+     *  @dev Retrieves a player that is participating to the lottery
+     */
     function getPlayer(uint256 index) public view returns (address) {
         return s_players[index];
     }
 
+    /**
+     *  @dev Retrieves a previous winner
+     *  If no winner has been picked yet, the returned address is null: 0x00000...
+     */
     function getWinner() public view returns (address) {
         return s_winner;
     }
 
+    /**
+     *  @dev Retrieves the state of the lottery (Open/Close)
+     */
     function getRaffleState() public view returns (RaffleState) {
         return s_raffleState;
     }
 
+    /**
+     *  @dev Retrieves the number of random numbers we want to work with this contract
+     */
     function getNumWords() public pure returns (uint16) {
         return NUM_WORDS;
     }
 
+    /**
+     *  @dev Retrieves the number of minimum request confirmations used by Chainlink Vrf requestRandomWords() function
+        https://docs.chain.link/docs/get-a-random-number/
+     */
     function getNumberOfConfirmations() public pure returns (uint16) {
         return MINIMUM_REQUEST_CONFIRMATIONS;
     }
 
+    /**
+     *  @dev Retrieves the number of players who are participating to the lottery
+     */
     function getNumberOfPlayers() public view returns (uint256) {
         return s_players.length;
     }
 
+    /**
+     *  @dev Retrieves the last mined block timestamp
+     */
     function getLastTimeStamp() public view returns (uint256) {
         return s_lastTimestamp;
+    }
+
+    /**
+     *  @dev Retrieves the interval time
+     */
+    function getTimeInterval() public view returns (uint256) {
+        return i_intervalTime;
+    }
+
+    /**
+     *  @dev Retrieves the callback gas limit used by Chainlink Vrf requestRandomWords() function
+        https://docs.chain.link/docs/get-a-random-number/
+     */
+    function getCallBackGasLimit() public view returns (uint256) {
+        return i_callBackGasLimit;
     }
 }

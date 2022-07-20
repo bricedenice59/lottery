@@ -2,5 +2,11 @@ node_modules
 artifacts
 bin
 cache
+coverage
+deployments
+.next
 
 package-lock.json
+gas-report.txt
+coverage.json
+.env
