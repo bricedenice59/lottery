@@ -1,40 +1,86 @@
-import { useEffect } from "react";
-import { useWeb3Contract, useMoralis, isWeb3Enabled } from "react-moralis";
+import { useEffect, useState } from "react";
+import { useWeb3Contract, useMoralis } from "react-moralis";
 import { contractAddresses, contractAbi } from "../contracts_constants/index";
+import { ethers } from "ethers";
 
 export default function Participate() {
-    const { chainId, isWeb3Enabled } = useMoralis();
-    const chainIdStr = parseInt(chainId).toString();
-    const lotteryContractAddress =
-        chainIdStr in contractAddresses ? contractAddresses[chainIdStr][0] : null;
+    const { Moralis, chainId, isWeb3Enabled } = useMoralis();
+    const { runContractFunction } = useWeb3Contract();
+    const [participationFee, setParticipationFee] = useState("0");
+    const [chainIdStr, setChainId] = useState("1");
+    const [contractAddress, setcontractAddress] = useState(null);
 
-    const { runContractFunction: getParticipationFee } = useWeb3Contract({
-        abi: contractAbi,
-        contractAddress: lotteryContractAddress,
-        functionName: "getParticipationFee",
-        params: {},
-    });
+    var lotteryContractAddress = null;
 
-    // const { runContractFunction: participate } = useWeb3Contract({
-    //     abi: contractAbi,
-    //     contractAddress: lotteryContractAddress,
-    //     functionName: "participate",
-    //     params: {},
-    // });
+    const participateToLottery = async () => {
+        const optionsParticipate = {
+            abi: contractAbi,
+            contractAddress: contractAddress,
+            functionName: "participate",
+            params: {},
+            msgValue: participationFee,
+        };
+        console.log(optionsParticipate);
+        await runContractFunction({
+            params: optionsParticipate,
+        });
+    };
+
+    const fetchParticipationFee = async (fromChain) => {
+        const newChainIdStr = parseInt(fromChain).toString();
+
+        if (newChainIdStr in contractAddresses)
+            lotteryContractAddress = contractAddresses[newChainIdStr][0];
+        else lotteryContractAddress = null;
+
+        setChainId(newChainIdStr);
+        setcontractAddress(lotteryContractAddress);
+
+        if (lotteryContractAddress != null) {
+            const optionsGetParticipationFee = {
+                abi: contractAbi,
+                contractAddress: lotteryContractAddress,
+                functionName: "getParticipationFee",
+                params: {},
+            };
+            const lotteryParticipationFee = await runContractFunction({
+                params: optionsGetParticipationFee,
+            });
+
+            setParticipationFee(lotteryParticipationFee);
+        }
+    };
 
     useEffect(() => {
         if (isWeb3Enabled) {
-            async function getUIParticipationFee() {
-                if (lotteryContractAddress == null)
-                    throw new Error(
-                        `No address found for deployed raffle contract with chainId: ${chainIdStr}`
-                    );
-                const participationFee = await getParticipationFee();
-                console.log(participationFee);
-            }
-            getUIParticipationFee();
+            fetchParticipationFee(chainId).catch(console.error);
         }
     }, [isWeb3Enabled == true]);
 
-    return <div>{chainIdStr}</div>;
+    useEffect(() => {
+        Moralis.onChainChanged(async function (chain) {
+            await fetchParticipationFee(chain).catch(console.error);
+        });
+    }, []);
+
+    return (
+        <div>
+            {contractAddress != null ? (
+                <div>
+                    <button
+                        onClick={async function () {
+                            await participateToLottery();
+                        }}
+                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full"
+                    >
+                        Participate
+                    </button>
+                    Participation fee :
+                    {ethers.utils.formatUnits(participationFee.toString(), "ether")} ETH
+                </div>
+            ) : (
+                <div>No address found for deployed raffle contract with chainId: {chainIdStr}</div>
+            )}
+        </div>
+    );
 }
