@@ -5,6 +5,7 @@ import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
 
+error Raffle_HasAlreadyParticipated();
 error Raffle__InsuffisiantFunds();
 error Raffle__TransferFailed();
 error Raffle__NotOpen();
@@ -39,6 +40,7 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
     RaffleState private s_raffleState;
     uint256 private s_lastTimestamp;
     uint256 private s_intervalTime;
+    mapping(address => bool) private s_mappingPlayersParticipating;
 
     /* events */
     event HasParticipated(address indexed player);
@@ -69,7 +71,13 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
     function participate() public payable {
         if (s_raffleState != RaffleState.Open) revert Raffle__NotOpen();
         if (msg.value < i_participationFee) revert Raffle__InsuffisiantFunds();
+
+        //only one participation by address
+        if (hasAlreadyParticipated(msg.sender)) revert Raffle_HasAlreadyParticipated();
+
         s_players.push(payable(msg.sender));
+        s_mappingPlayersParticipating[msg.sender] = true;
+
         emit HasParticipated(msg.sender);
     }
 
@@ -86,6 +94,10 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
         s_winner = winner;
 
         //reset players list and set raffle state to open state
+        for (uint256 i = 0; i < s_players.length; i++) {
+            address player = getPlayer(i);
+            s_mappingPlayersParticipating[player] = false;
+        }
         s_players = new address payable[](0);
         s_lastTimestamp = block.timestamp;
         s_raffleState = RaffleState.Open;
@@ -159,6 +171,13 @@ contract Raffle is VRFConsumerBaseV2, KeeperCompatibleInterface {
      */
     function getPlayer(uint256 index) public view returns (address) {
         return s_players[index];
+    }
+
+    /**
+     *  @dev Retrieves if a player has already participated to the lottery
+     */
+    function hasAlreadyParticipated(address _address) public view returns (bool) {
+        return s_mappingPlayersParticipating[_address];
     }
 
     /**

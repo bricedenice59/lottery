@@ -59,6 +59,12 @@ network.config.chainId != "31337"
                   assert.equal(participant1, player1.address);
                   assert.equal(participant2, player2.address);
               });
+              it("Cannot participate to the lottery more than once for the same round", async () => {
+                  await raffle.connect(player1).participate({ value: participationFee });
+                  await expect(
+                      raffle.connect(player1).participate({ value: participationFee })
+                  ).to.be.revertedWith("Raffle_HasAlreadyParticipated");
+              });
               it("emits event when adding participant", async () => {
                   await expect(
                       raffle.connect(player1).participate({ value: participationFee })

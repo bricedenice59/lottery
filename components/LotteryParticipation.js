@@ -5,13 +5,14 @@ import { ethers } from "ethers";
 import { useNotification } from "web3uikit";
 
 var deployedAddress;
-
+var currentAccount;
+var currentChain;
 export default function Participate() {
-    const { Moralis, chainId, isWeb3Enabled } = useMoralis();
+    const { Moralis, chainId, isWeb3Enabled, account } = useMoralis();
     const { runContractFunction } = useWeb3Contract();
     const [participationFee, setParticipationFee] = useState("0");
-    const [chainIdStr, setChainId] = useState("1");
     const [numberOfPlayers, setNumberOfPlayers] = useState("0");
+    const [hasPlayerAlreadyParticipated, setHasPlayerAlreadyParticipated] = useState(false);
 
     const dispatch = useNotification();
 
@@ -44,10 +45,14 @@ export default function Participate() {
     };
 
     const handleSuccessTxParticipate = async (tx) => {
-        console.log(tx);
-        await tx.wait(1);
-        handleNotification(tx);
-        await fetchNumberOfParticipants();
+        try {
+            var txResult = await tx.wait(1);
+            if (txResult.status == 1) {
+                handleNotification(tx);
+                await fetchNumberOfParticipants();
+                await fetchHasAlreadyParticipated(currentAccount);
+            }
+        } catch (error) {}
     };
 
     const handleNotification = (tx) => {
@@ -91,25 +96,47 @@ export default function Participate() {
         setNumberOfPlayers(numberOfPlayers.toString());
     };
 
-    useEffect(() => {
-        if (isWeb3Enabled) {
-            setChainId(parseInt(chainId).toString());
-            deployedAddress = getLotteryDeployedAddress(chainId);
-            if (deployedAddress != null) {
-                fetchParticipationFee().catch(console.error);
-                fetchNumberOfParticipants();
-            }
+    const fetchHasAlreadyParticipated = async (_address) => {
+        const optionsHasAlreadyParticipated = {
+            abi: contractAbi,
+            contractAddress: deployedAddress,
+            functionName: "hasAlreadyParticipated",
+            params: { _address },
+        };
+
+        const hasAlreadyParticipated = await runContractFunction({
+            params: optionsHasAlreadyParticipated,
+            onError: (error) => console.log(error),
+        });
+
+        setHasPlayerAlreadyParticipated(hasAlreadyParticipated);
+    };
+
+    async function UpdateUI() {
+        deployedAddress = getLotteryDeployedAddress(currentChain);
+        if (deployedAddress != null) {
+            await fetchParticipationFee();
+            await fetchNumberOfParticipants();
+            await fetchHasAlreadyParticipated(currentAccount);
         }
-    }, [isWeb3Enabled == true]);
+    }
 
     useEffect(() => {
-        Moralis.onChainChanged(async function (chain) {
-            setChainId(parseInt(chain).toString());
-            deployedAddress = getLotteryDeployedAddress(chain);
-            if (deployedAddress != null) {
-                fetchParticipationFee();
-                fetchNumberOfParticipants();
-            }
+        if (isWeb3Enabled) {
+            currentAccount = account;
+            currentChain = chainId;
+            UpdateUI();
+        }
+    }, [isWeb3Enabled]);
+
+    useEffect(() => {
+        Moralis.onAccountChanged(async function (newAccount) {
+            currentAccount = newAccount;
+            await UpdateUI();
+        });
+        Moralis.onChainChanged(async function (newChain) {
+            currentChain = newChain;
+            await UpdateUI();
         });
     }, []);
 
@@ -119,21 +146,24 @@ export default function Participate() {
                 deployedAddress != null ? (
                     <div>
                         <button
-                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full"
+                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full disabled:opacity-50 disabled:hover:bg-blue-500"
                             onClick={async function () {
                                 await participateToLottery();
                             }}
-                            // disabled={isLoading || isFetching}
+                            disabled={hasPlayerAlreadyParticipated}
                         >
-                            Participate
+                            {!hasPlayerAlreadyParticipated
+                                ? "Participate"
+                                : "Wait for the next round..."}
                         </button>
                         Participation fee :
                         {ethers.utils.formatUnits(participationFee.toString(), "ether")} ETH
-                        <div>{numberOfPlayers} players are participating</div>
+                        <div>{numberOfPlayers} player(s) are participating</div>
                     </div>
                 ) : (
                     <div>
-                        No address found for deployed raffle contract with chainId: {chainIdStr}
+                        No address found for deployed raffle contract with chainId:{" "}
+                        {parseInt(currentChain).toString()}
                     </div>
                 )
             ) : (
