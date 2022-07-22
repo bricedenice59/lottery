@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useWeb3Contract, useMoralis } from "react-moralis";
+import { useWeb3Contract, useMoralis, useMoralisWeb3Api } from "react-moralis";
 import { contractAddresses, contractAbi } from "../contracts_constants/index";
 import { ethers } from "ethers";
 import { useNotification } from "web3uikit";
@@ -7,9 +7,11 @@ import { useNotification } from "web3uikit";
 var deployedAddress;
 var currentAccount;
 var currentChain;
+
 export default function Participate() {
     const { Moralis, chainId, isWeb3Enabled, account } = useMoralis();
     const { runContractFunction } = useWeb3Contract();
+    const Web3Api = useMoralisWeb3Api();
     const [participationFee, setParticipationFee] = useState("0");
     const [numberOfPlayers, setNumberOfPlayers] = useState("0");
     const [hasPlayerAlreadyParticipated, setHasPlayerAlreadyParticipated] = useState(false);
@@ -36,7 +38,6 @@ export default function Participate() {
             params: {},
             msgValue: participationFee,
         };
-
         await runContractFunction({
             params: optionsParticipate,
             onSuccess: (tx) => handleSuccessTxParticipate(tx),
@@ -48,18 +49,18 @@ export default function Participate() {
         try {
             var txResult = await tx.wait(1);
             if (txResult.status == 1) {
-                handleNotification(tx);
+                handleNotificationTransactionCompleted(txResult);
                 await fetchNumberOfParticipants();
                 await fetchHasAlreadyParticipated(currentAccount);
             }
         } catch (error) {}
     };
 
-    const handleNotification = (tx) => {
+    const handleNotificationTransactionCompleted = (tx) => {
         dispatch({
             type: "info",
-            message: "Transaction completed!",
-            title: "Tx Notification",
+            message: tx.transactionHash,
+            title: "Transaction completed!",
             position: "topR",
             icon: "bell",
         });
@@ -72,9 +73,9 @@ export default function Participate() {
             functionName: "getParticipationFee",
             params: {},
         };
-
         const lotteryParticipationFee = await runContractFunction({
             params: optionsGetParticipationFee,
+            onError: (error) => console.log(error),
         });
 
         setParticipationFee(lotteryParticipationFee);
@@ -112,7 +113,24 @@ export default function Participate() {
         setHasPlayerAlreadyParticipated(hasAlreadyParticipated);
     };
 
+    const fetchWinner = async () => {
+        const optionsWinner = {
+            abi: contractAbi,
+            contractAddress: deployedAddress,
+            functionName: "getWinner",
+            params: {},
+        };
+
+        const winnerAddress = await runContractFunction({
+            params: optionsWinner,
+            onError: (error) => console.log(error),
+        });
+        return winnerAddress;
+    };
+
     async function UpdateUI() {
+        //if (isWeb3Enabled) await Moralis.enableWeb3();
+
         deployedAddress = getLotteryDeployedAddress(currentChain);
         if (deployedAddress != null) {
             await fetchParticipationFee();
@@ -121,23 +139,67 @@ export default function Participate() {
         }
     }
 
+    async function handleAccountChanged(newAccount) {
+        currentAccount = newAccount;
+        await UpdateUI();
+    }
+
+    async function handleChainChanged(newChain) {
+        currentChain = newChain;
+        await UpdateUI();
+        await SubscribeWinnerPickedEvent();
+    }
+
+    async function handleDisconnect() {
+        deployedAddress = null;
+    }
+
+    async function dispatchWinnerPickedNotification() {
+        try {
+            //get winnner first
+            const winner = await fetchWinner();
+            dispatch({
+                type: "info",
+                message: winner,
+                title: "Winner found!",
+                position: "topR",
+                icon: "bell",
+            });
+        } catch (error) {}
+    }
+
+    async function SubscribeWinnerPickedEvent() {
+        if (deployedAddress == null) return;
+
+        const web3Provider = await Moralis.enableWeb3();
+        const ethers = Moralis.web3Library;
+        const contract = new ethers.Contract(deployedAddress, contractAbi, web3Provider);
+
+        contract.on("WinnerPicked", async (from) => {
+            await dispatchWinnerPickedNotification();
+            await UpdateUI();
+        });
+    }
+
     useEffect(() => {
         if (isWeb3Enabled) {
             currentAccount = account;
             currentChain = chainId;
             UpdateUI();
+            SubscribeWinnerPickedEvent();
         }
     }, [isWeb3Enabled]);
 
     useEffect(() => {
-        Moralis.onAccountChanged(async function (newAccount) {
-            currentAccount = newAccount;
-            await UpdateUI();
-        });
-        Moralis.onChainChanged(async function (newChain) {
-            currentChain = newChain;
-            await UpdateUI();
-        });
+        Moralis.onAccountChanged(handleAccountChanged);
+        Moralis.onChainChanged(handleChainChanged);
+        Moralis.onWeb3Deactivated(handleDisconnect);
+        //subscription cleanup
+        return () => {
+            Moralis.removeListener("onAccountChanged", handleAccountChanged);
+            Moralis.removeListener("onChainChanged", handleChainChanged);
+            Moralis.removeListener("onWeb3Deactivated", handleDisconnect);
+        };
     }, []);
 
     return (
