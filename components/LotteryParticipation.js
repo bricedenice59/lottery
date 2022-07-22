@@ -1,17 +1,15 @@
 import { useEffect, useState } from "react";
-import { useWeb3Contract, useMoralis, useMoralisWeb3Api } from "react-moralis";
+import { useWeb3Contract, useMoralis } from "react-moralis";
 import { contractAddresses, contractAbi } from "../contracts_constants/index";
 import { ethers } from "ethers";
 import { useNotification } from "web3uikit";
 
 var deployedAddress;
 var currentAccount;
-var currentChain;
 
 export default function Participate() {
     const { Moralis, chainId, isWeb3Enabled, account } = useMoralis();
     const { runContractFunction } = useWeb3Contract();
-    const Web3Api = useMoralisWeb3Api();
     const [participationFee, setParticipationFee] = useState("0");
     const [numberOfPlayers, setNumberOfPlayers] = useState("0");
     const [hasPlayerAlreadyParticipated, setHasPlayerAlreadyParticipated] = useState(false);
@@ -22,8 +20,8 @@ export default function Participate() {
         return chainIdParam in contractAddresses;
     }
 
-    function getLotteryDeployedAddress(chainIdParam) {
-        var chainIdStr = parseInt(chainIdParam).toString();
+    function getLotteryDeployedAddress() {
+        var chainIdStr = parseInt(chainId).toString();
         if (isChainIdSupported(chainIdStr)) {
             return contractAddresses[chainIdStr][0];
         }
@@ -129,9 +127,7 @@ export default function Participate() {
     };
 
     async function UpdateUI() {
-        //if (isWeb3Enabled) await Moralis.enableWeb3();
-
-        deployedAddress = getLotteryDeployedAddress(currentChain);
+        deployedAddress = getLotteryDeployedAddress();
         if (deployedAddress != null) {
             await fetchParticipationFee();
             await fetchNumberOfParticipants();
@@ -142,16 +138,6 @@ export default function Participate() {
     async function handleAccountChanged(newAccount) {
         currentAccount = newAccount;
         await UpdateUI();
-    }
-
-    async function handleChainChanged(newChain) {
-        currentChain = newChain;
-        await UpdateUI();
-        await SubscribeWinnerPickedEvent();
-    }
-
-    async function handleDisconnect() {
-        deployedAddress = null;
     }
 
     async function dispatchWinnerPickedNotification() {
@@ -167,15 +153,14 @@ export default function Participate() {
             });
         } catch (error) {}
     }
-
     async function SubscribeWinnerPickedEvent() {
-        if (deployedAddress == null) return;
-
-        const web3Provider = await Moralis.enableWeb3();
         const ethers = Moralis.web3Library;
-        const contract = new ethers.Contract(deployedAddress, contractAbi, web3Provider);
+        const provider = await new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const contract = new ethers.Contract(deployedAddress, contractAbi, signer);
 
-        contract.on("WinnerPicked", async (from) => {
+        contract.removeAllListeners("WinnerPicked");
+        contract.once("WinnerPicked", async (from) => {
             await dispatchWinnerPickedNotification();
             await UpdateUI();
         });
@@ -184,23 +169,20 @@ export default function Participate() {
     useEffect(() => {
         if (isWeb3Enabled) {
             currentAccount = account;
-            currentChain = chainId;
             UpdateUI();
             SubscribeWinnerPickedEvent();
         }
     }, [isWeb3Enabled]);
 
     useEffect(() => {
-        Moralis.onAccountChanged(handleAccountChanged);
-        Moralis.onChainChanged(handleChainChanged);
-        Moralis.onWeb3Deactivated(handleDisconnect);
-        //subscription cleanup
-        return () => {
-            Moralis.removeListener("onAccountChanged", handleAccountChanged);
-            Moralis.removeListener("onChainChanged", handleChainChanged);
-            Moralis.removeListener("onWeb3Deactivated", handleDisconnect);
-        };
-    }, []);
+        console.log(`chain changed to ${chainId}`);
+        UpdateUI();
+    }, [isChainIdSupported(chainId)]);
+
+    useEffect(() => {
+        currentAccount = account;
+        UpdateUI();
+    }, [account]);
 
     return (
         <div>
@@ -223,10 +205,7 @@ export default function Participate() {
                         <div>{numberOfPlayers} player(s) are participating</div>
                     </div>
                 ) : (
-                    <div>
-                        No address found for deployed raffle contract with chainId:{" "}
-                        {parseInt(currentChain).toString()}
-                    </div>
+                    <div></div>
                 )
             ) : (
                 <div></div>
