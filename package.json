@@ -43,5 +43,10 @@
         "solhint": "^3.3.7",
         "solidity-coverage": "^0.7.21",
         "tailwindcss": "^3.1.6"
-    }
+    },
+    "overrides": {
+        "@nomiclabs/hardhat-waffle": {
+          "@nomiclabs/hardhat-ethers": "$@nomiclabs/hardhat-ethers"
+        }
+      }
 }
