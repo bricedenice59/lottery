@@ -5,6 +5,7 @@ cache
 coverage
 deployments
 .next
+out
 
 package-lock.json
 gas-report.txt

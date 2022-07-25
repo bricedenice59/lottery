@@ -1,0 +1,32 @@
+Install packages:
+    1. npm install --legacy-peer-deps
+
+    There are at the moment (July 2022) still issues with packages overrides @nomiclabs/hardhat-waffle and @nomiclabs/hardhat-ethers
+    hence the use of the option that fix the issue --legacy-peer-deps
+
+Deploy on rinkeby:
+
+    Check the .env.example and helper-hardhat-config.json files and fill them according to your configuration
+    1. npx hardhat deploy --network rinkeby
+
+    - This will deploy the smart contract on the given chain (rinkeby)
+    - Verify the contract on etherscan
+    - Update the front end variables (update contracts_constants\abi.json and contracts_constants\addresses.json)
+
+Host website on fleek:
+    Create an account if you don't have any yet.
+    Copy teamId and generate API keys from the web interface
+
+    Generate static files for the dApp : 
+    1. npm run build 
+    This will create a production website
+    2. npx next export
+    A folder called “out” is created and this is the folder to pass to a later stage when publishing the dApp
+
+    Install fleek-cli to publish dApp on ipfs via fleek.co
+    3. npm install -g @fleekhq/fleek-cli 
+    //on MacOS system, export temporarily the API Key with following command (no space between the variable name and its value!): 
+    export FLEEK_API_KEY=...
+    
+    4. fleek site:init 
+    follow instructions until cid is displayed and new site is deployed.
