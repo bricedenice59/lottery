@@ -11,3 +11,4 @@ package-lock.json
 gas-report.txt
 coverage.json
 .env
+.vscode/slither-results.json

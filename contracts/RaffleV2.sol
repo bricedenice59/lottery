@@ -17,7 +17,7 @@ error Raffle__UpKeepNotNeeded(uint256 balance, uint256 numberOfPlayers, uint256 
  *  @notice This contract is a demo of a simple decentralised lottery using Chainlink VRF and Chainlink KeepUp
  *  @dev Both Chainlink VRF and Chainlink KeepUp subscription fundings and time base scheduler configuration are set up on chainlink website
  */
-contract Raffle is Initializable, VRFConsumerBaseUpgradeable, KeeperCompatibleInterface {
+contract RaffleV2 is Initializable, VRFConsumerBaseUpgradeable, KeeperCompatibleInterface {
     enum RaffleState {
         Open,
         Calculating
@@ -26,6 +26,7 @@ contract Raffle is Initializable, VRFConsumerBaseUpgradeable, KeeperCompatibleIn
     /* private constant variables */
     uint16 private constant MINIMUM_REQUEST_CONFIRMATIONS = 3;
     uint16 private constant NUM_WORDS = 1;
+    uint16 private constant MINIMUM_PLAYERS_TO_PICK_WINNER = 5;
 
     /* private storage variables */
     VRFCoordinatorV2Interface private s_vrfCoordinator;
@@ -154,11 +155,11 @@ contract Raffle is Initializable, VRFConsumerBaseUpgradeable, KeeperCompatibleIn
         //Have blocks been mined?
         bool timePassed = (block.timestamp - s_lastTimestamp) > s_intervalTime;
         //Do we have a least one player that has particpated to the lottery?
-        bool hasPlayers = (s_players.length > 0);
+        bool hasEnoughPlayers = (s_players.length >= MINIMUM_PLAYERS_TO_PICK_WINNER);
         //Does the lottery contract retain players fees?
         bool hasBalance = address(this).balance > 0;
 
-        upkeepNeeded = isOpen && timePassed && hasBalance && hasPlayers;
+        upkeepNeeded = isOpen && timePassed && hasBalance && hasEnoughPlayers;
     }
 
     /**
@@ -198,6 +199,21 @@ contract Raffle is Initializable, VRFConsumerBaseUpgradeable, KeeperCompatibleIn
     }
 
     /**
+     *  @dev Retrieves the number of random numbers we want to work with this contract
+     */
+    function getNumWords() public pure returns (uint16) {
+        return NUM_WORDS;
+    }
+
+    /**
+     *  @dev Retrieves the number of minimum request confirmations used by Chainlink Vrf requestRandomWords() function
+        https://docs.chain.link/docs/get-a-random-number/
+     */
+    function getNumberOfConfirmations() public pure returns (uint16) {
+        return MINIMUM_REQUEST_CONFIRMATIONS;
+    }
+
+    /**
      *  @dev Retrieves the number of players who are participating to the lottery
      */
     function getNumberOfPlayers() public view returns (uint256) {
@@ -227,6 +243,10 @@ contract Raffle is Initializable, VRFConsumerBaseUpgradeable, KeeperCompatibleIn
     }
 
     function test() public pure returns (string memory) {
-        return "This is v1!";
+        return "This is v2!";
+    }
+
+    function newInABi() public pure returns (string memory) {
+        return "This is v2!";
     }
 }

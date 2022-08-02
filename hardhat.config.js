@@ -5,6 +5,7 @@ require("@nomiclabs/hardhat-waffle");
 require("hardhat-gas-reporter");
 require("solidity-coverage");
 require("hardhat-deploy");
+require("@openzeppelin/hardhat-upgrades");
 
 dotenvExpand.expand(config);
 
@@ -24,7 +25,21 @@ module.exports = {
     solidity: {
         compilers: [
             {
-                version: "0.8.15",
+                //My contract
+                version: "0.8.0",
+            },
+            {
+                //@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol
+                version: "0.8.1",
+            },
+            {
+                //@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol
+                version: "0.8.2",
+            },
+            {
+                //@chainlink/contracts/src/v0.8/mocks/VRFCoordinatorV2Mock.sol
+                //@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol
+                version: "0.8.4",
             },
         ],
     },
@@ -33,12 +48,15 @@ module.exports = {
         hardhat: {
             chainId: 31337,
             blockConfirmations: 1,
+            saveDeployments: true,
         },
         rinkeby: {
             url: RINKEBY_RPC_URL,
             accounts: [PRIVATE_KEY, PLAYER1_PRIVATE_KEY, PLAYER2_PRIVATE_KEY, PLAYER3_PRIVATE_KEY],
             chainId: 4,
             blockConfirmations: 6,
+            gas: 2100000,
+            gasPrice: 8000000000,
         },
     },
     gasReporter: {

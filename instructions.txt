@@ -4,14 +4,24 @@ Install packages:
     There are at the moment (July 2022) still issues with packages overrides @nomiclabs/hardhat-waffle and @nomiclabs/hardhat-ethers
     hence the use of the option that fix the issue --legacy-peer-deps
 
-Deploy on rinkeby:
+Deploy/Upgrade on hardhat (proxy and implementation):
+    1. hh deploy --tags mocks,proxy --network hardhat
+    P.S: upgrading a new implementation does not work with hardhat localnet because I end up with this error message: doesn't look like an ERC 1967 proxy with a logic contract address
+    seems to be a bug from hardhat as it works with upgrading on a real testnet
+
+Deploy on rinkeby (proxy and implementation):
 
     Check the .env.example and helper-hardhat-config.json files and fill them according to your configuration
-    1. npx hardhat deploy --network rinkeby
+    1. npx hardhat deploy --tags proxy --network rinkeby
 
-    - This will deploy the smart contract on the given chain (rinkeby)
+    - This will deploy the smart contract implementation + a proxy for future upgrades on the given chain (rinkeby)
     - Verify the contract on etherscan
     - Update the front end variables (update contracts_constants\abi.json and contracts_constants\addresses.json)
+
+Upgrade proxy on rinkeby when a new implementation is ready :
+    1. Check 02-upgrade-new-implementation.js and edit variable "contractName" so that it contains the name of the contract in V2,V3....
+    2. hh deploy --tags upgrade --network rinkeby
+    It will upgrade upgrade proxy and link proxy to a new contract implementation + update frontend abi with the last abi version
 
 Host website on fleek:
     Create an account if you don't have any yet.

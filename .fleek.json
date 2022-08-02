@@ -1,0 +1,14 @@
+{
+  "site": {
+    "id": "060c4459-d572-4ebb-80da-0d5f07177fb5",
+    "team": "bffa0e52-e7e8-4984-b08f-0060cafd04f3",
+    "platform": "ipfs",
+    "source": "ipfs",
+    "name": "frosty-snow-4710"
+  },
+  "build": {
+    "baseDir": "",
+    "publicDir": "out",
+    "rootDir": ""
+  }
+}
